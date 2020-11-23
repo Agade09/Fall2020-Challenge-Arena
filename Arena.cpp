@@ -208,6 +208,50 @@ void simulate(state &S,const array<action,2> &Actions){
     ++S.turn;
 }
 
+bool Can_Pay(const array<int,4> &cost,const array<int,4> &inv,const int times){
+    for(int i=0;i<4;++i){
+        if(times*cost[i]>inv[i]){
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Castable(const spell &s,const array<int,4> &inv,const int times){
+    return accumulate(inv.begin(),inv.end(),0)-times*accumulate(s.cost.begin(),s.cost.end(),0)<=Max_Ingredients && Can_Pay(s.cost,inv,times);
+}
+
+int Castable(const spell &s,const array<int,4> &inv){
+    if(!s.castable){
+        return 0;
+    }
+    const int Max_Times{s.repeatable?Max_Ingredients:1};
+    for(int times=1;times<=Max_Times;++times){
+        if(!Castable(s,inv,times)){
+            return times-1;
+        }
+    }
+    return Max_Times;
+}
+
+bool Buyable(const tome_spell &t,const array<int,4> &inv){
+    return t.price<=inv[0];
+}
+
+bool is_move_legal(const state &S,const action &mv,const int player_id){
+    if(mv.type==CAST){
+        const spell &s{S.spells[player_id][mv.idx]};
+        return s.castable && Castable(s,S.inv[player_id],mv.times);
+    }
+    else if(mv.type==BREW){
+        return Can_Pay(S.recipes[mv.idx].cost,S.inv[player_id],1);
+    }
+    else if(mv.type==LEARN){
+        return Buyable(S.tome[mv.idx],S.inv[player_id]);
+    }
+    return true;
+}
+
 struct AI{
     int id,pid,outPipe,errPipe,inPipe,turnOfDeath;
     string name;
@@ -382,6 +426,9 @@ action StringToAction(const string &mv_str,const state &S,const int player_id){
     }
     if(ss && mv.type==CAST){
         ss >> mv.times;
+    }
+    if(!is_move_legal(S,mv,player_id)){
+        throw(3);
     }
 	return mv;
 }
